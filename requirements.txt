@@ -1,4 +1,3 @@
 discord.py
-psutil
 flask
 python-dotenv
