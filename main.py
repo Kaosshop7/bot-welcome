@@ -8,15 +8,15 @@ from flask import Flask
 from threading import Thread
 from dotenv import load_dotenv
 
-# --- โหลด Token จาก .env ---
+# โหลด .env
 load_dotenv()
 
-# --- Web Server (สำหรับ Uptimerobot) ---
+# --- Web Server (Keep Alive) ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "✅ PDR Bot is Online!"
+    return "Bot is Online!"
 
 def run():
     app.run(host='0.0.0.0', port=8080)
@@ -25,7 +25,7 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- ระบบบันทึกห้องต้อนรับ ---
+# --- Config ---
 CONFIG_FILE = 'welcome_config.json'
 
 def load_config():
@@ -35,10 +35,10 @@ def load_config():
 def save_config(config):
     with open(CONFIG_FILE, 'w') as f: json.dump(config, f, indent=4)
 
-# --- ตั้งค่าบอท ---
+# --- Bot Setup ---
 intents = discord.Intents.default()
-intents.members = True 
-intents.message_content = True 
+intents.members = True
+intents.message_content = True
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -48,15 +48,18 @@ class MyClient(discord.Client):
 
     async def on_ready(self):
         await self.tree.sync()
-        # สถานะนิ่งๆ ไม่กินแรงเครื่อง
         await self.change_presence(activity=discord.Game(name="Welcome to PDR Community"))
         print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print('>>> PDR Bot is Ready (Welcome Only) <<<')
+        print('>>> Bot is Ready <<<')
 
-    async def on_message(self, message):
-        if message.author.bot: return
-       
-                # --- ข้อความต้อนรับ ---
+    async def on_member_join(self, member):
+        config = load_config()
+        guild_id = str(member.guild.id)
+        if guild_id in config:
+            channel_id = config[guild_id]
+            channel = self.get_channel(channel_id)
+            if channel:
+                # แก้ไขการเขียนข้อความให้ปลอดภัยจาก Error ย่อหน้า
                 msg = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"🎉 **ยินดีต้อนรับเข้าสู่ PDR Community** 🎉\n"
@@ -75,20 +78,19 @@ client = MyClient()
 
 # --- Slash Commands ---
 
-@client.tree.command(name="ping", description="เช็คสถานะบอท")
+@client.tree.command(name="ping", description="เช็คสถานะ")
 async def ping(interaction: discord.Interaction):
     latency = round(client.latency * 1000)
     current_time = time.time()
-    uptime_seconds = int(current_time - client.start_time)
-    uptime = str(datetime.timedelta(seconds=uptime_seconds))
+    seconds = int(current_time - client.start_time)
+    uptime = str(datetime.timedelta(seconds=seconds))
     
-    embed = discord.Embed(title="🤖 PDR Bot Status", color=0xf1c40f)
-    embed.add_field(name="📡 Ping", value=f"`{latency}ms`", inline=True)
-    embed.add_field(name="⏱️ Uptime", value=f"`{uptime}`", inline=True)
-    embed.set_footer(text="PDR Community System")
+    embed = discord.Embed(title="🤖 Bot Status", color=0xf1c40f)
+    embed.add_field(name="Ping", value=f"{latency}ms", inline=True)
+    embed.add_field(name="Uptime", value=f"{uptime}", inline=True)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@client.tree.command(name="set_welcome", description="ตั้งค่าห้องต้อนรับ (Admin)")
+@client.tree.command(name="set_welcome", description="ตั้งค่าห้องต้อนรับ")
 async def set_welcome(interaction: discord.Interaction, channel: discord.TextChannel):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ ต้องเป็น Admin ค่ะ", ephemeral=True)
@@ -98,7 +100,7 @@ async def set_welcome(interaction: discord.Interaction, channel: discord.TextCha
     save_config(config)
     await interaction.response.send_message(f"✅ ตั้งค่าห้องต้อนรับเป็น {channel.mention} แล้วค่ะ", ephemeral=True)
 
-@client.tree.command(name="test_welcome", description="ทดสอบข้อความต้อนรับ (Admin)")
+@client.tree.command(name="test_welcome", description="ทดสอบต้อนรับ")
 async def test_welcome(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ ต้องเป็น Admin ค่ะ", ephemeral=True)
@@ -113,12 +115,12 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="ℹ️ ข้อมูล", value="`/ping`", inline=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# เริ่ม Web Server
+# เริ่มระบบ
 keep_alive()
 
-# รันบอท
 token = os.getenv('TOKEN')
 if token:
     client.run(token)
 else:
-    print("❌ ไม่พบ Token! กรุณาตรวจสอบไฟล์ .env หรือการตั้งค่าบน Render ค่ะ")
+    print("❌ ไม่พบ Token")
+    
